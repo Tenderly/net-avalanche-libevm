@@ -105,6 +105,71 @@ func TestPrecompileOverride(t *testing.T) {
 	}
 }
 
+func TestEVMOverridePrecompiles(t *testing.T) {
+	const gasLimit = uint64(1e7)
+
+	override := &precompileStub{requiredGas: 314159, returnData: []byte("override")}
+	hooked := &precompileStub{requiredGas: 271828, returnData: []byte("hook")}
+	addr := common.Address{'o', 'v', 'e', 'r', 'r', 'i', 'd', 'e'}
+
+	tests := []struct {
+		name        string
+		addr        common.Address
+		hook        libevm.PrecompiledContract
+		override    vm.PrecompiledContract
+		wantData    []byte
+		wantGasLeft uint64
+	}{
+		{
+			name:        "ordinary account",
+			addr:        addr,
+			override:    override,
+			wantData:    override.returnData,
+			wantGasLeft: gasLimit - override.requiredGas,
+		},
+		{
+			name:        "fork precompile",
+			addr:        vm.PrecompiledAddressesCancun[0],
+			override:    override,
+			wantData:    override.returnData,
+			wantGasLeft: gasLimit - override.requiredGas,
+		},
+		{
+			name:        "hook precompile",
+			addr:        addr,
+			hook:        hooked,
+			override:    override,
+			wantData:    override.returnData,
+			wantGasLeft: gasLimit - override.requiredGas,
+		},
+		{
+			name:        "nil override removes hook precompile",
+			addr:        addr,
+			hook:        hooked,
+			wantGasLeft: gasLimit,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.hook != nil {
+				hooks := &hookstest.Stub{
+					PrecompileOverrides: map[common.Address]libevm.PrecompiledContract{tt.addr: tt.hook},
+				}
+				hooks.Register(t)
+			}
+
+			_, evm := ethtest.NewZeroEVM(t)
+			evm.OverridePrecompiles(map[common.Address]vm.PrecompiledContract{tt.addr: tt.override})
+
+			gotData, gotGasLeft, err := evm.Call(vm.AccountRef{}, tt.addr, nil, gasLimit, uint256.NewInt(0))
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantData, gotData, "return data")
+			assert.Equal(t, tt.wantGasLeft, gotGasLeft, "gas left")
+		})
+	}
+}
+
 type statefulPrecompileOutput struct {
 	ChainID                 *big.Int
 	Addresses               *libevm.AddressContext
