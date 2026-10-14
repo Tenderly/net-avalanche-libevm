@@ -39,6 +39,9 @@ type (
 )
 
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
+	if p, override := evm.precompileOverrides[addr]; override {
+		return p, p != nil
+	}
 	if p, override := evm.chainRules.Hooks().PrecompileOverride(addr); override {
 		log.Debug("Overriding precompile", "address", addr, "implementation", log.TypeOf(p))
 		return p, p != nil
@@ -130,7 +133,8 @@ type EVM struct {
 	callGasTemp uint64
 
 	// libevm
-	executionInvalidated error // see [EVM.InvalidateExecution]
+	executionInvalidated error                                  // see [EVM.InvalidateExecution]
+	precompileOverrides  map[common.Address]PrecompiledContract // see [EVM.OverridePrecompiles]
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should

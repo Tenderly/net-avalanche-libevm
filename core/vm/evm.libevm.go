@@ -101,6 +101,14 @@ func (evm *EVM) InvalidateExecution(err error) {
 	evm.executionInvalidated = err
 }
 
+// OverridePrecompiles makes the EVM resolve each address in `overrides` to its
+// contract ahead of [params.RulesHooks.PrecompileOverride] and the fork's
+// precompiles; a nil contract makes the address an ordinary account. A later
+// call replaces the previous overrides.
+func (evm *EVM) OverridePrecompiles(overrides map[common.Address]PrecompiledContract) {
+	evm.precompileOverrides = overrides
+}
+
 // ExecutionInvalidated returns the last value passed to
 // [EVM.InvalidateExecution] or nil if no such call has occurred or if
 // [EVM.Reset] has been called.
